@@ -13,14 +13,19 @@
 --   cat supabase/assignment4.sql supabase/assignment4_photos.sql supabase/assignment4_render.sql supabase/assignment4_edit.sql | pbcopy
 --
 -- Security model, strictest that still lets the app work:
---   * Every table has RLS on. Logged-out visitors (the `anon` role) get nothing.
+--   * Every table has RLS on. Logged-out visitors (the `anon` role) get nothing,
+--     except a read-only look at the "Car" catalogue (last bullet).
 --   * builds:      any signed-in user can read; you can only create/delete your own.
 --                  Vote counters can't be written by clients (only by a trigger).
 --   * build_votes: you can only see and change your own votes; you can't vote
 --                  on your own build; one vote per user per build.
 --   * profiles:    any signed-in user can read (names/photos show on builds);
 --                  you can only create/update your own row.
---   * "Car":       read-only for signed-in users.
+--   * "Car":       read-only catalogue of brands and models, public reference data.
+--                  Signed-in users and anon can read it; nobody can change it from the app.
+--                  anon stays ON PURPOSE: the earlier commit-specific deployments (Assignment
+--                  2/3) query it with a plain Supabase client that carries no session, and
+--                  without this they show "permission denied for table Car".
 
 
 -- 1. builds: one row per AI generation ---------------------------------------
@@ -139,7 +144,8 @@ grant select, delete on public.build_votes to authenticated;
 grant insert (build_id, value) on public.build_votes to authenticated;
 grant update (value) on public.build_votes to authenticated;
 
-grant select on public."Car" to authenticated;
+-- "Car" is a public catalogue: anon may read it too (see the header), nobody may write.
+grant select on public."Car" to anon, authenticated;
 grant select, insert, update on public.profiles to authenticated;
 
 
@@ -193,10 +199,15 @@ create policy "Users can remove their own votes"
     on public.build_votes for delete to authenticated
     using (user_id = (select auth.uid()));
 
--- "Car": read-only catalogue for signed-in users.
+-- "Car": read-only catalogue. Signed-in users, plus anon for the earlier deployments.
 drop policy if exists "Signed-in users can read cars" on public."Car";
 create policy "Signed-in users can read cars"
     on public."Car" for select to authenticated
+    using (true);
+
+drop policy if exists "Anyone can read cars" on public."Car";
+create policy "Anyone can read cars"
+    on public."Car" for select to anon
     using (true);
 
 -- profiles: names and photos are shown next to builds, so signed-in users can read all.
