@@ -1,4 +1,6 @@
 {
+  "name": "mod-squad",
+  "private": true,
   "dependencies": {
     "@supabase/ssr": "0.12.0",
     "@supabase/supabase-js": "^2.109.0",
